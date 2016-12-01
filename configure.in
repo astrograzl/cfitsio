@@ -15,7 +15,7 @@ AC_CANONICAL_TARGET([])
 # CFITSIO Version Numbers:
 #--------------------------------------------------------------------
 AC_SUBST(CFITSIO_MAJOR,3)
-AC_SUBST(CFITSIO_MINOR,39)
+AC_SUBST(CFITSIO_MINOR,41)
 # Increment soname each time the interface changes:
 AC_SUBST(CFITSIO_SONAME,5)
 
@@ -112,7 +112,7 @@ test "$exec_prefix" != NONE -a "$prefix" != "$exec_prefix" \
 #--------------------------------------------------------------------
 
 case $host in
-    *pc-cygwin*)
+    *cygwin*)
 	ARCH="cygwin"
 	EXT="cygwin"
 	;;
@@ -255,7 +255,7 @@ CFLAGS="$CFLAGS"
 LIBPRE=""
 
 case $host in
-    *pc-cygwin*)
+    *cygwin*)
 	CFLAGS="$CFLAGS -DHAVE_POSIX_SIGNALS"
 	;;
     *apple-darwin*)
@@ -266,21 +266,21 @@ case $host in
                 ;;
             *)
                 changequote([,])
-                # Test to see whether the C compiler accepts the "-arch"
-                # flags for building "universal" binaries (Apple XCode only):
-                SAVE_CFLAGS="$CFLAGS"
-                C_UNIV_SWITCH="-arch i386 -arch x86_64"
-                CFLAGS="$CFLAGS $C_UNIV_SWITCH"
-                AC_MSG_CHECKING([whether $CC accepts $C_UNIV_SWITCH])
-                AC_LANG_PUSH([C])
-                AC_COMPILE_IFELSE([AC_LANG_PROGRAM([])],[c_has_option=yes],[c_has_option=no])
-                AC_MSG_RESULT($c_has_option)
-                AC_LANG_POP([])
-                # Value of C_UNIV_SWITCH will be needed later for SHLIB_LD:
-                if test "$c_has_option" = no; then C_UNIV_SWITCH=""; fi
-                CFLAGS="$SAVE_CFLAGS $C_UNIV_SWITCH"
-                # Set LDFLAGS used by utilities:
-                LDFLAGS_BIN="$LDFLAGS_BIN -rpath \${CFITSIO_LIB}"
+                echo "int main(){return(0);}" > /tmp/$$.c
+                $CC -v -o /tmp/$$.out /tmp/$$.c 2> /tmp/$$.log
+                if test `cat /tmp/$$.log | grep -ci 'LLVM'` -ne 0; then APPLEXCODE="yes"; fi
+                if test "x$APPLEXCODE" = xyes; then
+                # Apple XCode LLVM:
+                  # Flags for building Universal binaries:
+                  C_UNIV_SWITCH="-arch i386 -arch x86_64"
+                  CFLAGS="$CFLAGS $C_UNIV_SWITCH"
+                  # Set LDFLAGS used by utilities:
+                  LDFLAGS_BIN="$LDFLAGS_BIN -rpath \${CFITSIO_LIB}"
+                else
+                # Non-Xcode GCC:
+                  # Set LDFLAGS used by utilities:
+                  LDFLAGS_BIN="$LDFLAGS_BIN -Wl,-rpath,\${CFITSIO_LIB}"
+                fi
                 ;;
         esac
         # For large file support (but may break Absoft compilers):
@@ -404,7 +404,8 @@ case $EXT in
             SHLIB_LD="$CC -dynamiclib -install_name lib\${PACKAGE}.\${CFITSIO_SONAME}\${SHLIB_SUFFIX} -compatibility_version \${CFITSIO_SONAME} -current_version \${CFITSIO_SONAME}.\${CFITSIO_MAJOR}.\${CFITSIO_MINOR}"
             ;;
         *)
-            # Build for i386 & x86_64 architectures on Darwin 10.x or newer:
+            # Build 'Universal' binaries (i386 & x86_64 architectures) and
+            # use rpath token on Darwin 10.x or newer:
             SHLIB_LD="$CC -dynamiclib $C_UNIV_SWITCH -headerpad_max_install_names -install_name @rpath/lib\${PACKAGE}.\${CFITSIO_SONAME}\${SHLIB_SUFFIX} -compatibility_version \${CFITSIO_SONAME} -current_version \${CFITSIO_SONAME}.\${CFITSIO_MAJOR}.\${CFITSIO_MINOR}"
             ;;
     esac
@@ -571,6 +572,7 @@ fi
 # ------------------------------------------------------------------------------
 if test "x$BUILD_REENTRANT" = xyes; then
   AC_DEFINE(_REENTRANT)
+  AC_DEFINE([_XOPEN_SOURCE], [700])
   AC_CHECK_LIB([pthread],[main],[],[AC_MSG_ERROR(Unable to locate pthread library needed when enabling reentrant multithreading)])
 fi
 # ------------------------------------------------------------------------------

@@ -73,11 +73,13 @@ float ffvers(float *version)  /* IO - version number */
   return the current version number of the FITSIO software
 */
 {
-      *version = (float) 3.39;
+      *version = (float) 3.41;
 
-/*       April 2016
+/*       Nov 2016
 
    Previous releases:
+      *version = 3.40       Oct 2016
+      *version = 3.39       Apr 2016
       *version = 3.38       Feb 2016
       *version = 3.37     3 Jun 2014
       *version = 3.36     6 Dec 2013
@@ -1024,6 +1026,7 @@ int ffmkky(const char *keyname,   /* I - keyword name    */
 {
     size_t namelen, len, ii;
     char tmpname[FLEN_KEYWORD], tmpname2[FLEN_KEYWORD],*cptr;
+    char *saveptr;
     int tstatus = -1, nblank = 0, ntoken = 0, maxlen = 0, specialchar = 0;
 
     if (*status > 0)
@@ -1094,7 +1097,7 @@ int ffmkky(const char *keyname,   /* I - keyword name    */
 	/* and test if any of the tokens contain nonstandard characters */
 	
       	strncat(tmpname2, tmpname, FLEN_KEYWORD - 1);
-        cptr = strtok(tmpname2, " ");
+        cptr = ffstrtok(tmpname2, " ",&saveptr);
 	while (cptr) {
 	    if (strlen(cptr) > maxlen) maxlen = strlen(cptr); /* find longest token */
 
@@ -1102,7 +1105,7 @@ int ffmkky(const char *keyname,   /* I - keyword name    */
             tstatus = -1;  /* suppress any error message */
 	    if (fftkey(cptr, &tstatus) > 0) specialchar = 1; 
 	    
-	    cptr = strtok(NULL, " ");
+	    cptr = ffstrtok(NULL, " ",&saveptr);
 	    ntoken++;
 	}
 
@@ -9456,4 +9459,41 @@ int ffc2dd(const char *cval,   /* I - string representation of the value */
     }
 
     return(*status);
+}
+
+/* ================================================================== */
+/* A hack for nonunix machines, which lack strcasecmp and strncasecmp */
+/* ================================================================== */
+
+int fits_strcasecmp(const char *s1, const char *s2)
+{
+   char c1, c2;
+
+   for (;;) {
+      c1 = toupper( *s1 );
+      c2 = toupper( *s2 );
+
+      if (c1 < c2) return(-1);
+      if (c1 > c2) return(1);
+      if (c1 == 0) return(0);
+      s1++;
+      s2++;
+   }
+}
+
+int fits_strncasecmp(const char *s1, const char *s2, size_t n)
+{
+   char c1, c2;
+
+   for (; n-- ;) {
+      c1 = toupper( *s1 );
+      c2 = toupper( *s2 );
+
+      if (c1 < c2) return(-1);
+      if (c1 > c2) return(1);
+      if (c1 == 0) return(0);
+      s1++;
+      s2++;
+   }
+   return(0);
 }
