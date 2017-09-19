@@ -968,6 +968,7 @@ int imcomp_init_table(fitsfile *outfptr,
     char *tunit[] = {"\0",            "\0",            "\0"  };
     char comm[FLEN_COMMENT];
     long actual_tilesize[MAX_COMPRESS_DIM]; /* Actual size to use for tiles */
+    int is_primary=0; /* Is this attempting to write to the primary? */
     
     if (*status > 0)
         return(*status);
@@ -1206,6 +1207,10 @@ int imcomp_init_table(fitsfile *outfptr,
         return(*status = DATA_COMPRESSION_ERR);
     }
 
+    /* If attempting to write compressed image to primary, the
+       call to ffcrtb will increment Fptr->curhdu to 1.  Therefore
+       we need to test now for setting is_primary */
+    is_primary = (outfptr->Fptr->curhdu == 0);
     /* create the bintable extension to contain the compressed image */
     ffcrtb(outfptr, BINARY_TBL, nrows, ncols, ttype, 
                 tform, tunit, 0, status);
@@ -1218,8 +1223,9 @@ int imcomp_init_table(fitsfile *outfptr,
         /*  write the keywords defining the datatype and dimensions of */
 	/*  the uncompressed image.  If not, these keywords will be */
         /*  copied later from the input uncompressed image  */
-	   
-        ffpkyl (outfptr, "ZSIMPLE", 1,
+	
+        if (is_primary)   
+            ffpkyl (outfptr, "ZSIMPLE", 1,
 			"file does conform to FITS standard", status);
         ffpkyj (outfptr, "ZBITPIX", bitpix,
 			"data type of original image", status);
@@ -5194,6 +5200,7 @@ int imcomp_get_compressed_image_par(fitsfile *infptr, int *status)
     if (ffgky(infptr, TSTRING, "ZQUANTIZ", value, NULL, &tstatus) > 0)
     {
         (infptr->Fptr)->quantize_method = 0;
+        (infptr->Fptr)->quantize_level = 0;
     } else {
 
         if (!FSTRCMP(value, "NONE") ) {
@@ -6315,9 +6322,10 @@ int imcomp_decompress_tile (fitsfile *infptr,
 	       all we need to is to reset the error status to zero.
 	    */
 	       
-            if ((infptr->Fptr)->compress_type == HCOMPRESS_1) {
-	        if (*status == NUM_OVERFLOW) *status = 0;
-	    }
+             if ((infptr->Fptr)->compress_type == HCOMPRESS_1) {
+                if ((*status == NUM_OVERFLOW) || (*status == OVERFLOW_ERR))
+                        *status = 0;
+             }
           }
         } else if (tiledatatype == TSHORT) {
           fffi2i2((short *)idata, tilelen, bscale, bzero, nullcheck, (short) tnull,
