@@ -975,7 +975,7 @@ int imcomp_init_table(fitsfile *outfptr,
 
     /* check for special case of losslessly compressing floating point */
     /* images.  Only compression algorithm that supports this is GZIP */
-    if ( (outfptr->Fptr)->request_quantize_level == NO_QUANTIZE) {
+    if ( (inbitpix < 0) && ((outfptr->Fptr)->request_quantize_level == NO_QUANTIZE) ) {
        if (((outfptr->Fptr)->request_compress_type != GZIP_1) &&
            ((outfptr->Fptr)->request_compress_type != GZIP_2)) {
          ffpmsg("Lossless compression of floating point images must use GZIP (imcomp_init_table)");
@@ -1234,7 +1234,7 @@ int imcomp_init_table(fitsfile *outfptr,
 
         for (ii = 0;  ii < naxis;  ii++)
         {
-            sprintf (keyname, "ZNAXIS%d", ii+1);
+            snprintf (keyname, FLEN_KEYWORD,"ZNAXIS%d", ii+1);
             ffpkyj (outfptr, keyname, naxes[ii],
 			"length of original image axis", status);
         }
@@ -1242,7 +1242,7 @@ int imcomp_init_table(fitsfile *outfptr,
                       
     for (ii = 0;  ii < naxis;  ii++)
     {
-        sprintf (keyname, "ZTILE%d", ii+1);
+        snprintf (keyname, FLEN_KEYWORD,"ZTILE%d", ii+1);
         ffpkyj (outfptr, keyname, actual_tilesize[ii],
 			"size of tiles to be compressed", status);
     }
@@ -1731,8 +1731,16 @@ int imcomp_compress_tile (fitsfile *outfptr,
     if ( (outfptr->Fptr)->quantize_level == NO_QUANTIZE) {
        if (((outfptr->Fptr)->compress_type != GZIP_1) &&
            ((outfptr->Fptr)->compress_type != GZIP_2)) {
-         ffpmsg("Lossless compression of floating point images must use GZIP (imcomp_compress_tile)");
-         return(*status = DATA_COMPRESSION_ERR);
+           switch (datatype) {
+            case TFLOAT:
+            case TDOUBLE:
+            case TCOMPLEX:
+            case TDBLCOMPLEX:
+              ffpmsg("Lossless compression of floating point images must use GZIP (imcomp_compress_tile)");
+              return(*status = DATA_COMPRESSION_ERR);
+            default:
+              break;
+          }
        }
     }
 
@@ -5256,7 +5264,7 @@ int imcomp_get_compressed_image_par(fitsfile *infptr, int *status)
     for (ii = 0;  ii < (infptr->Fptr)->zndim;  ii++)
     {
         /* get image size */
-        sprintf (keyword, "ZNAXIS%d", ii+1);
+        snprintf (keyword, FLEN_KEYWORD,"ZNAXIS%d", ii+1);
 	ffgky (infptr, TLONG,keyword, &(infptr->Fptr)->znaxis[ii],NULL,status);
 
         if (*status > 0)
@@ -5266,7 +5274,7 @@ int imcomp_get_compressed_image_par(fitsfile *infptr, int *status)
         }
 
         /* get compression tile size */
-	sprintf (keyword, "ZTILE%d", ii+1);
+	snprintf (keyword, FLEN_KEYWORD,"ZTILE%d", ii+1);
 
         /* set default tile size in case keywords are not present */
         if (ii == 0)
@@ -5570,7 +5578,7 @@ int imcomp_copy_img2comp(fitsfile *infptr, fitsfile *outfptr, int *status)
 	    /* the value is not 'NONE' */	
 	    fits_write_history(outfptr, 
 	        "Image was compressed by CFITSIO using scaled integer quantization:", status);
-	    sprintf(card2, "  q = %f / quantized level scaling parameter", 
+	    snprintf(card2, FLEN_CARD,"  q = %f / quantized level scaling parameter", 
 	        (outfptr->Fptr)->request_quantize_level);
 	    fits_write_history(outfptr, card2, status); 
 	    fits_write_history(outfptr, card+10, status); 
@@ -8225,7 +8233,7 @@ int fits_compress_table(fitsfile *infptr, fitsfile *outfptr, int *status)
     
         for (ii = 0; ii < ncols; ii++) {  /* loop over columns */
 	  /* initialize the diagnostic compression results string */
-	  sprintf(results[ii],"%3d %3d %3d ", ii+1, coltype[ii], compalgor[ii]);  
+	  snprintf(results[ii],30,"%3d %3d %3d ", ii+1, coltype[ii], compalgor[ii]);  
           cratio[ii] = 0;
 	  
           if (rm_repeat[ii] > 0) {  /* skip virtual columns with zero width */
@@ -8388,7 +8396,7 @@ int fits_compress_table(fitsfile *infptr, fitsfile *outfptr, int *status)
 		if (compressed_size != 0)
 		    cratio[ii] = uncompressed_size / compressed_size;
 
-		sprintf(tempstring," r=%6.2f",cratio[ii]);
+		snprintf(tempstring,FLEN_VALUE," r=%6.2f",cratio[ii]);
 		strcat(results[ii],tempstring);
 
 		/* now we just have to compress the array of descriptors (both input and output) */
@@ -8515,7 +8523,7 @@ int fits_compress_table(fitsfile *infptr, fitsfile *outfptr, int *status)
 	    if (dlen != 0)
 	       cratio[ii] = (float) datasize / (float) dlen;  /* compression ratio of the column */
 
-	    sprintf(tempstring," r=%6.2f",cratio[ii]);
+	    snprintf(tempstring,FLEN_VALUE," r=%6.2f",cratio[ii]);
 	    strcat(results[ii],tempstring);
  
           }  /* end of not a virtual column */
